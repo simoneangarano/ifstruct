@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import requests
 
@@ -17,6 +18,32 @@ def _chat_completions_url(base_url: str) -> str:
     if normalized.endswith("/chat/completions"):
         return normalized
     return normalized + "/chat/completions"
+
+
+def _extract_message_text(data: dict[str, Any]) -> str:
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("API response missing choices")
+
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        raise ValueError("API response missing message")
+
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "text" and isinstance(item.get("text"), str):
+                text_parts.append(item["text"])
+        if text_parts:
+            return "".join(text_parts)
+
+    raise ValueError("API response did not include string content")
 
 
 def chat_completion(
@@ -55,7 +82,7 @@ def chat_completion(
             if "error" in data:
                 raise ValueError(f"API error: {data['error']}")
             return CompletionResult(
-                text=data["choices"][0]["message"]["content"],
+                text=_extract_message_text(data),
                 latency_ms=latency_ms,
             )
         except Exception as exc:  # pragma: no cover - network failure path
