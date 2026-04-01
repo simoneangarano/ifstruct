@@ -13,7 +13,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from .client import chat_completion
+from .client import Refusal, chat_completion
 from .dataset import IfStructExample, load_examples
 from .validator import validate_response
 
@@ -34,7 +34,7 @@ class EvalResult:
     require_wrapper_key: bool
 
 
-def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float) -> EvalResult:
+def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, max_retries: int = 40) -> EvalResult:
     completion = chat_completion(
         base_url=base_url,
         api_key=api_key,
@@ -42,6 +42,7 @@ def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str
         prompt=example.prompt,
         max_tokens=max_tokens,
         temperature=temperature,
+        max_retries=max_retries,
     )
     validation = validate_response(
         response=completion.text,
@@ -242,6 +243,8 @@ def main() -> None:
     parser.add_argument("--offset", type=int, default=0, help="Optional offset into the dataset.")
     parser.add_argument("--max-tokens", type=int, default=16000)
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--max-retries", type=int, default=40, help="Max API retries per sample.")
+    parser.add_argument("--seed", type=int, nargs="+", default=None, help="Run only these seed(s).")
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--log-failures", default=None, help="Optional JSONL path for failed examples.")
     parser.add_argument("--results-file", default=None, help="Optional JSON path for run metadata, summary, and per-sample results.")
@@ -253,6 +256,11 @@ def main() -> None:
         parser.error("Missing --api-key or API_KEY.")
 
     examples = load_examples(args.dataset)
+    if args.seed:
+        seed_set = set(args.seed)
+        examples = [e for e in examples if e.seed in seed_set]
+        if not examples:
+            parser.error(f"No examples found for seed(s): {args.seed}")
     if args.offset:
         examples = examples[args.offset :]
     if args.limit is not None:
@@ -275,6 +283,7 @@ def main() -> None:
                 api_key=args.api_key,
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
+                max_retries=args.max_retries,
             ): example
             for example in examples
         }
@@ -282,6 +291,21 @@ def main() -> None:
             example = futures[future]
             try:
                 result = future.result()
+            except Refusal as exc:
+                result = EvalResult(
+                    seed=example.seed,
+                    model=args.model,
+                    passed=False,
+                    score=0.0,
+                    errors=[f"Refusal: {exc}"],
+                    details={"refusal": True},
+                    prompt=example.prompt,
+                    response="",
+                    latency_ms=0.0,
+                    output_format=example.output_format,
+                    entity_type=example.entity_type,
+                    require_wrapper_key=example.require_wrapper_key,
+                )
             except Exception as exc:
                 result = EvalResult(
                     seed=example.seed,

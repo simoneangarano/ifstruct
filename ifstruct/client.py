@@ -7,6 +7,10 @@ from typing import Any
 import requests
 
 
+class Refusal(Exception):
+    """Model refused to respond."""
+
+
 @dataclass
 class CompletionResult:
     text: str
@@ -42,6 +46,11 @@ def _extract_message_text(data: dict[str, Any]) -> str:
                 text_parts.append(item["text"])
         if text_parts:
             return "".join(text_parts)
+
+    finish = choices[0].get("finish_reason") or choices[0].get("native_finish_reason") or ""
+    if finish == "refusal" or choices[0].get("native_finish_reason") == "refusal":
+        refusal_text = message.get("refusal") or ""
+        raise Refusal(f"Model refused to respond{': ' + refusal_text if refusal_text else ''}")
 
     raise ValueError("API response did not include string content")
 
@@ -85,9 +94,12 @@ def chat_completion(
                 text=_extract_message_text(data),
                 latency_ms=latency_ms,
             )
+        except Refusal:
+            raise
         except Exception as exc:  # pragma: no cover - network failure path
             last_error = exc
             if attempt < max_retries:
+                print(f"  [retry {attempt + 1}/{max_retries}] {type(exc).__name__}: {str(exc)[:120]}", flush=True)
                 time.sleep(retry_delay)
 
     assert last_error is not None
