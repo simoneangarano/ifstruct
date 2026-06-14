@@ -127,24 +127,61 @@ def _format_yaml_error(exc: Exception) -> str:
     return "; ".join(parts) if parts else str(exc)
 
 
+JSON_AS_YAML_ERROR = (
+    "Response is JSON/flow style, but YAML output was requested. "
+    "Emit block-style YAML (e.g. `key: value` / `- item`), not JSON wrapped "
+    "in a ```yaml fence."
+)
+
+
+def _is_flow_style_root(content: str) -> bool:
+    """Return True if the top-level YAML collection is flow style (JSON-like).
+
+    YAML is a superset of JSON, so JSON content parses cleanly as YAML. A YAML
+    request should not be satisfied by JSON, so we reject documents whose root
+    collection is flow style. Because a flow-style root cannot contain block
+    children, inspecting only the root node is sufficient; block-style roots
+    with nested flow collections (e.g. ``tags: [a, b]``) are still accepted.
+    """
+    try:
+        root = yaml.compose(content, Loader=_SafeLoaderNoDate)
+    except (yaml.YAMLError, RecursionError):
+        return False  # let the normal parse path report the error
+    # flow_style is True for flow collections, False for block, and absent on
+    # scalars / empty docs (those fail later schema checks with clearer errors).
+    return getattr(root, "flow_style", None) is True
+
+
+def _load_block_yaml(content: str) -> tuple[Any | None, str | None]:
+    """Parse YAML content, rejecting JSON/flow-style roots.
+
+    Returns (parsed, error). On a flow-style root the parse is discarded and an
+    error is returned so a YAML request isn't silently satisfied by JSON.
+    """
+    parsed = yaml.load(content, Loader=_SafeLoaderNoDate)
+    if _is_flow_style_root(content):
+        return None, JSON_AS_YAML_ERROR
+    return parsed, None
+
+
 def extract_yaml_from_response(response: str) -> tuple[Any | None, str | None]:
     response = response.strip()
     last_error: str | None = None
     block, opening_fence = _extract_outer_fenced_block(response)
     if block is not None:
         try:
-            return yaml.load(block.strip(), Loader=_SafeLoaderNoDate), None
+            return _load_block_yaml(block.strip())
         except (yaml.YAMLError, ValueError) as exc:
             last_error = _format_yaml_error(exc)
     for pattern in [r"```yaml\s*([\s\S]*?)\s*```", r"```yml\s*([\s\S]*?)\s*```", r"```\s*([\s\S]*?)\s*```"]:
         matches = re.findall(pattern, response)
         for match in matches:
             try:
-                return yaml.load(match.strip(), Loader=_SafeLoaderNoDate), None
+                return _load_block_yaml(match.strip())
             except (yaml.YAMLError, ValueError) as exc:
                 last_error = _format_yaml_error(exc)
     try:
-        return yaml.load(response, Loader=_SafeLoaderNoDate), None
+        return _load_block_yaml(response)
     except (yaml.YAMLError, ValueError) as exc:
         last_error = _format_yaml_error(exc)
     if last_error:
