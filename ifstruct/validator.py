@@ -35,8 +35,8 @@ class ValidationResult:
 
 def check_uses_code_block(response: str, output_format: str = "json") -> tuple[bool, str | None]:
     response = response.strip()
-    _, opening_fence = _extract_outer_fenced_block(response)
-    if opening_fence is not None:
+    block, opening_fence = _extract_outer_fenced_block(response)
+    if block is not None and opening_fence is not None:
         lowered = opening_fence.strip().lower()
         if lowered.startswith("```yaml"):
             return True, "```yaml"
@@ -52,6 +52,8 @@ def extract_json_from_response(response: str) -> tuple[Any | None, str | None]:
     response = response.strip()
 
     block, opening_fence = _extract_outer_fenced_block(response)
+    if opening_fence is not None and block is None:
+        return None, "Unclosed code block"
     if block is not None:
         lowered = (opening_fence or "").strip().lower()
         if not (lowered.startswith("```yaml") or lowered.startswith("```yml")):
@@ -195,6 +197,8 @@ def extract_yaml_from_response(response: str) -> tuple[Any | None, str | None]:
     response = response.strip()
     last_error: str | None = None
     block, opening_fence = _extract_outer_fenced_block(response)
+    if opening_fence is not None and block is None:
+        return None, "Unclosed code block"
     if block is not None:
         try:
             return _load_block_yaml(block.strip())
