@@ -18,6 +18,35 @@ _SafeLoaderNoDate.yaml_implicit_resolvers = {
 }
 
 
+def remove_thinking_tags(text: str) -> str:
+    text = re.sub(
+        r"<think>.*?</think>|\[THINK\].*?\[/THINK\]",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    text = re.sub(
+        r"^.*?</think>|^.*?\[/THINK\]",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    text = re.sub(
+        r"<think>.*$|\[THINK\].*$",
+        "",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    match = re.search(
+        r"(?:<\|start\|>)?assistant(?:<\|channel\|>)?final(?:<\|message\|>)?",
+        text,
+    )
+    if match:
+        text = text[match.end():]
+    text = re.sub(r"<\|(?:end|return)\|>\s*$", "", text)
+    return text.strip()
+
+
 @dataclass
 class FieldCheck:
     path: str
@@ -379,30 +408,32 @@ def validate_against_json_schema(data: Any, schema: dict[str, Any], path: str = 
         return checks
 
     if schema_type == "string":
-        return [FieldCheck(path or "root", isinstance(data, str), None if isinstance(data, str) else f"expected string, got {type(data).__name__}")]
+        checks.append(FieldCheck(path or "root", isinstance(data, str), None if isinstance(data, str) else f"expected string, got {type(data).__name__}"))
 
     if schema_type == "number":
         if not isinstance(data, (int, float)) or isinstance(data, bool):
-            return [FieldCheck(path or "root", False, f"expected number, got {type(data).__name__}")]
-        error = None
-        minimum = schema.get("minimum")
-        maximum = schema.get("maximum")
-        if minimum is not None and data < minimum:
-            error = f"{data} is less than minimum {minimum}"
-        elif maximum is not None and data > maximum:
-            error = f"{data} is greater than maximum {maximum}"
-        checks.append(FieldCheck(path or "root", error is None, error))
+            checks.append(FieldCheck(path or "root", False, f"expected number, got {type(data).__name__}"))
+        else:
+            error = None
+            minimum = schema.get("minimum")
+            maximum = schema.get("maximum")
+            if minimum is not None and data < minimum:
+                error = f"{data} is less than minimum {minimum}"
+            elif maximum is not None and data > maximum:
+                error = f"{data} is greater than maximum {maximum}"
+            checks.append(FieldCheck(path or "root", error is None, error))
     elif schema_type == "integer":
         if not isinstance(data, int) or isinstance(data, bool):
-            return [FieldCheck(path or "root", False, f"expected integer, got {type(data).__name__}")]
-        error = None
-        minimum = schema.get("minimum")
-        maximum = schema.get("maximum")
-        if minimum is not None and data < minimum:
-            error = f"{data} is less than minimum {minimum}"
-        elif maximum is not None and data > maximum:
-            error = f"{data} is greater than maximum {maximum}"
-        checks.append(FieldCheck(path or "root", error is None, error))
+            checks.append(FieldCheck(path or "root", False, f"expected integer, got {type(data).__name__}"))
+        else:
+            error = None
+            minimum = schema.get("minimum")
+            maximum = schema.get("maximum")
+            if minimum is not None and data < minimum:
+                error = f"{data} is less than minimum {minimum}"
+            elif maximum is not None and data > maximum:
+                error = f"{data} is greater than maximum {maximum}"
+            checks.append(FieldCheck(path or "root", error is None, error))
     elif schema_type == "boolean":
         checks.append(FieldCheck(path or "root", isinstance(data, bool), None if isinstance(data, bool) else f"expected boolean, got {type(data).__name__}"))
 
@@ -478,6 +509,7 @@ def validate_response(
     require_wrapper_key: bool,
     require_code_block: bool,
 ) -> ValidationResult:
+    response = remove_thinking_tags(response)
     errors: list[str] = []
     details: dict[str, Any] = {"output_format": output_format}
 

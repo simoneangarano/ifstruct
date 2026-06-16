@@ -2,6 +2,7 @@ from ifstruct.validator import (
     check_uses_code_block,
     extract_json_from_response,
     extract_yaml_from_response,
+    remove_thinking_tags,
     validate_response,
 )
 
@@ -69,3 +70,64 @@ def test_raw_json_and_yaml_still_parse_without_fences():
     assert json_data == [{"id": "1"}]
     assert yaml_error is None
     assert yaml_data == [{"id": "1"}]
+
+
+def test_string_enum_mismatch_fails_validation():
+    schema = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "unit": {"type": "string", "enum": ["cup", "tsp"]},
+            },
+            "required": ["unit"],
+        },
+        "minItems": 1,
+        "maxItems": 1,
+    }
+
+    result = validate_response(
+        response='[{"unit": "cups"}]',
+        json_schema=schema,
+        top_level_count=1,
+        require_no_commentary=False,
+        output_format="json",
+        top_level_key=None,
+        require_wrapper_key=False,
+        require_code_block=False,
+    )
+
+    assert result.passed is False
+    assert "'cups' not in allowed values ['cup', 'tsp']" in result.errors
+
+
+def test_validate_response_strips_thinking_tags():
+    schema = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+        },
+        "minItems": 1,
+        "maxItems": 1,
+    }
+
+    result = validate_response(
+        response='<think>draft invalid junk</think>[{"id": "1"}]',
+        json_schema=schema,
+        top_level_count=1,
+        require_no_commentary=True,
+        output_format="json",
+        top_level_key=None,
+        require_wrapper_key=False,
+        require_code_block=False,
+    )
+
+    assert result.passed is True
+
+
+def test_remove_thinking_tags_handles_harmony_final_channel():
+    text = "analysis notes<|start|>assistant<|channel|>final<|message|>[{\"id\":\"1\"}]<|end|>"
+
+    assert remove_thinking_tags(text) == '[{"id":"1"}]'
