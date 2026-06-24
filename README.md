@@ -38,7 +38,8 @@ The results file also reports pass rates sliced by output format (JSON vs. YAML)
 ## Install
 
 ```bash
-cd ~/code/evals/ifstruct
+git clone https://github.com/Liquid4All/ifstruct.git
+cd ifstruct
 uv sync
 ```
 
@@ -63,7 +64,7 @@ The CLI automatically loads `.env` if it exists, and it also works if `BASE_URL`
 
 ```bash
 uv run ifstruct-eval \
-  --model google/gemini-3-flash-preview \
+  --model google/gemini-3.5-flash \
   --dataset data/test.jsonl \
   --results-file results/latest.json \
   --n-threads 64 \
