@@ -105,3 +105,15 @@ Each JSONL row contains:
 - `require_code_block`
 - `require_no_commentary`
 - `output_format`
+
+## Citation
+
+```yaml
+@article{liquidAI2026IFStruct,
+    author = {Liquid AI},
+    title = {IFStruct: Measuring structured-output compliance},
+    journal = {Liquid AI Blog},
+    year = {2026},
+    note = {www.liquid.ai/blog/ifstruct-v1.0}
+}
+```
