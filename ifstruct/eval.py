@@ -34,7 +34,7 @@ class EvalResult:
     require_wrapper_key: bool
 
 
-def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, max_retries: int = 40) -> EvalResult:
+def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, sampling: dict[str, Any] | None = None, max_retries: int = 40) -> EvalResult:
     completion = chat_completion(
         base_url=base_url,
         api_key=api_key,
@@ -42,6 +42,7 @@ def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str
         prompt=example.prompt,
         max_tokens=max_tokens,
         temperature=temperature,
+        sampling=sampling,
         max_retries=max_retries,
     )
     validation = validate_response(
@@ -213,6 +214,7 @@ def write_results_file(
             "offset": args.offset,
             "max_tokens": args.max_tokens,
             "temperature": args.temperature,
+            "generation_args": json.loads(args.generation_args) if args.generation_args else None,
         },
         "summary": build_summary(ordered_results),
         "samples": [asdict(result) for result in ordered_results],
@@ -243,6 +245,11 @@ def main() -> None:
     parser.add_argument("--offset", type=int, default=0, help="Optional offset into the dataset.")
     parser.add_argument("--max-tokens", type=int, default=16000)
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument(
+        "--generation-args",
+        default=None,
+        help="JSON dict of extra sampling params (top_p, top_k, min_p, penalties, chat_template_kwargs, ...) merged into each request.",
+    )
     parser.add_argument("--max-retries", type=int, default=40, help="Max API retries per sample.")
     parser.add_argument("--seed", type=int, nargs="+", default=None, help="Run only these seed(s).")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -254,6 +261,8 @@ def main() -> None:
         parser.error("Missing --base-url or BASE_URL.")
     if not args.api_key:
         parser.error("Missing --api-key or API_KEY.")
+
+    sampling = json.loads(args.generation_args) if args.generation_args else None
 
     examples = load_examples(args.dataset)
     if args.seed:
@@ -283,6 +292,7 @@ def main() -> None:
                 api_key=args.api_key,
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
+                sampling=sampling,
                 max_retries=args.max_retries,
             ): example
             for example in examples

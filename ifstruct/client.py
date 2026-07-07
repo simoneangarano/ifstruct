@@ -63,11 +63,16 @@ def chat_completion(
     prompt: str,
     max_tokens: int = 8000,
     temperature: float = 0.0,
+    sampling: dict[str, Any] | None = None,
     timeout: float = 120.0,
     max_retries: int = 40,
     retry_delay: float = 30.0,
 ) -> CompletionResult:
-    """Call an OpenAI-compatible chat completions endpoint."""
+    """Call an OpenAI-compatible chat completions endpoint.
+
+    ``sampling`` holds any extra request parameters (top_p, top_k, min_p,
+    penalties, chat_template_kwargs, ...) merged into the payload verbatim.
+    """
     url = _chat_completions_url(base_url)
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -79,6 +84,8 @@ def chat_completion(
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
+    if sampling:
+        payload.update(sampling)
 
     last_error: Exception | None = None
     for attempt in range(max_retries + 1):
