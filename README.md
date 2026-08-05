@@ -76,6 +76,12 @@ uv run ifstruct-eval \
 You can still override either setting explicitly with `--base-url` or `--api-key`.
 `--results-file` writes a JSON artifact with run metadata, aggregate summary stats, and per-sample prompts, responses, and validation results.
 
+Each prompt is sent as a single user message. Pass `--system-prompt` to prepend a system
+message — needed for models that switch reasoning mode through a system-prompt marker
+(e.g. SmolLM3's `/think` / `/no_think`) rather than through chat-template kwargs. Models
+that take `enable_thinking`-style flags can instead go through
+`--generation-args '{"chat_template_kwargs": {"enable_thinking": true}}'`.
+
 ## Methodology
 
 IFStruct uses a 2,000-example test set in [data/test.jsonl](/Users/sam/code/evals/ifstruct/data/test.jsonl). Each example includes a prompt, a target schema, and explicit structural requirements for the response.

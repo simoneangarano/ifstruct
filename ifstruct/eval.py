@@ -34,12 +34,13 @@ class EvalResult:
     require_wrapper_key: bool
 
 
-def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, sampling: dict[str, Any] | None = None, max_retries: int = 40) -> EvalResult:
+def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, sampling: dict[str, Any] | None = None, system_prompt: str | None = None, max_retries: int = 40) -> EvalResult:
     completion = chat_completion(
         base_url=base_url,
         api_key=api_key,
         model=model,
         prompt=example.prompt,
+        system_prompt=system_prompt,
         max_tokens=max_tokens,
         temperature=temperature,
         sampling=sampling,
@@ -215,6 +216,7 @@ def write_results_file(
             "max_tokens": args.max_tokens,
             "temperature": args.temperature,
             "generation_args": json.loads(args.generation_args) if args.generation_args else None,
+            "system_prompt": args.system_prompt,
         },
         "summary": build_summary(ordered_results),
         "samples": [asdict(result) for result in ordered_results],
@@ -249,6 +251,11 @@ def main() -> None:
         "--generation-args",
         default=None,
         help="JSON dict of extra sampling params (top_p, top_k, min_p, penalties, chat_template_kwargs, ...) merged into each request.",
+    )
+    parser.add_argument(
+        "--system-prompt",
+        default=None,
+        help="Optional system message prepended to every request. Needed by models that switch reasoning mode via a system-prompt marker (e.g. SmolLM3's /think).",
     )
     parser.add_argument("--max-retries", type=int, default=40, help="Max API retries per sample.")
     parser.add_argument("--seed", type=int, nargs="+", default=None, help="Run only these seed(s).")
@@ -293,6 +300,7 @@ def main() -> None:
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
                 sampling=sampling,
+                system_prompt=args.system_prompt,
                 max_retries=args.max_retries,
             ): example
             for example in examples

@@ -61,6 +61,7 @@ def chat_completion(
     api_key: str,
     model: str,
     prompt: str,
+    system_prompt: str | None = None,
     max_tokens: int = 8000,
     temperature: float = 0.0,
     sampling: dict[str, Any] | None = None,
@@ -72,15 +73,24 @@ def chat_completion(
 
     ``sampling`` holds any extra request parameters (top_p, top_k, min_p,
     penalties, chat_template_kwargs, ...) merged into the payload verbatim.
+
+    ``system_prompt``, when non-empty, is prepended as a system message. Some
+    models switch reasoning mode through a marker in the system prompt (e.g.
+    SmolLM3's ``/think`` / ``/no_think``) rather than through chat-template
+    kwargs, so the eval has to be able to set one.
     """
     url = _chat_completions_url(base_url)
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    messages: list[dict[str, str]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
