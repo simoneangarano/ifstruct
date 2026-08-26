@@ -47,10 +47,14 @@ def _extract_message_text(data: dict[str, Any]) -> str:
         if text_parts:
             return "".join(text_parts)
 
-    finish = choices[0].get("finish_reason") or choices[0].get("native_finish_reason") or ""
+    finish = (
+        choices[0].get("finish_reason") or choices[0].get("native_finish_reason") or ""
+    )
     if finish == "refusal" or choices[0].get("native_finish_reason") == "refusal":
         refusal_text = message.get("refusal") or ""
-        raise Refusal(f"Model refused to respond{': ' + refusal_text if refusal_text else ''}")
+        raise Refusal(
+            f"Model refused to respond{': ' + refusal_text if refusal_text else ''}"
+        )
 
     raise ValueError("API response did not include string content")
 
@@ -65,7 +69,7 @@ def chat_completion(
     max_tokens: int = 8000,
     temperature: float = 0.0,
     sampling: dict[str, Any] | None = None,
-    timeout: float = 120.0,
+    timeout: float = 300.0,
     max_retries: int = 40,
     retry_delay: float = 30.0,
 ) -> CompletionResult:
@@ -101,7 +105,9 @@ def chat_completion(
     for attempt in range(max_retries + 1):
         try:
             start = time.perf_counter()
-            response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            response = requests.post(
+                url, headers=headers, json=payload, timeout=timeout
+            )
             latency_ms = (time.perf_counter() - start) * 1000.0
             response.raise_for_status()
             data = response.json()
@@ -116,7 +122,10 @@ def chat_completion(
         except Exception as exc:  # pragma: no cover - network failure path
             last_error = exc
             if attempt < max_retries:
-                print(f"  [retry {attempt + 1}/{max_retries}] {type(exc).__name__}: {str(exc)[:120]}", flush=True)
+                print(
+                    f"  [retry {attempt + 1}/{max_retries}] {type(exc).__name__}: {str(exc)[:120]}",
+                    flush=True,
+                )
                 time.sleep(retry_delay)
 
     assert last_error is not None
