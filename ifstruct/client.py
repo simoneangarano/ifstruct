@@ -6,6 +6,9 @@ from typing import Any
 
 import requests
 
+# Repo-root module; on PYTHONPATH via BaseEvalDriver.env_prefix.
+import token_budget
+
 
 class Refusal(Exception):
     """Model refused to respond."""
@@ -95,7 +98,9 @@ def chat_completion(
     payload = {
         "model": model,
         "messages": messages,
-        "max_tokens": max_tokens,
+        "max_tokens": token_budget.resolve_max_tokens(
+            {"max_tokens": max_tokens}, messages=messages
+        ),
         "temperature": temperature,
     }
     if sampling:
