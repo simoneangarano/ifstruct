@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import os
+import sys
 import time
 from dataclasses import dataclass
 from typing import Any
 
 import requests
 
-# Repo-root module; on PYTHONPATH via BaseEvalDriver.env_prefix.
+sys.path.append(
+    os.environ.get("ROOT") or os.path.abspath(__file__).split("/suites/")[0]
+)
 import token_budget
 
 
@@ -34,7 +38,7 @@ def _extract_message_text(data: dict[str, Any]) -> str:
 
     message = choices[0].get("message")
     if not isinstance(message, dict):
-        raise ValueError("API response missing message")
+        raise TypeError("API response missing message")
 
     content = message.get("content")
     if isinstance(content, str):
@@ -124,7 +128,7 @@ def chat_completion(
             )
         except Refusal:
             raise
-        except Exception as exc:  # pragma: no cover - network failure path
+        except Exception as exc:  # noqa: BLE001
             last_error = exc
             if attempt < max_retries:
                 print(
