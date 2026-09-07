@@ -8,6 +8,12 @@ dependencies = [
   "PyYAML>=6.0",
   "python-dotenv>=1.0.1",
   "requests>=2.31.0",
+  # For the orchestrator's token_budget: it renders prompts through the model's
+  # own chat template to count them, which needs AutoTokenizer. Without it every
+  # request falls back to a chars//4 estimate. The lighter `tokenizers` is not a
+  # substitute -- it has no apply_chat_template, so role markers and tool schemas
+  # would go uncounted.
+  "transformers>=4.40",
 ]
 
 [project.scripts]
