@@ -14,6 +14,10 @@ dependencies = [
   # substitute -- it has no apply_chat_template, so role markers and tool schemas
   # would go uncounted.
   "transformers>=4.40",
+  # apply_chat_template renders with jinja2, and transformers 5.x no longer pulls
+  # it in on a torch-free install -- without it the template raises and the count
+  # silently drops back to the chars//4 estimate.
+  "jinja2>=3.1.6",
 ]
 
 [project.scripts]
