@@ -11,10 +11,7 @@ import requests
 sys.path.append(
     os.environ.get("ROOT") or os.path.abspath(__file__).split("/suites/")[0]
 )
-try:  # token_budget now lives in the domyn_evals package
-    from domyn_evals import token_budget
-except ImportError:  # orchestrator predating the move
-    import token_budget
+from domyn_evals import token_budget
 
 
 class Refusal(Exception):
@@ -146,6 +143,9 @@ def chat_completion(
                 latency_ms=latency_ms,
             )
         except Refusal:
+            raise
+        except requests.exceptions.Timeout:
+            # retrying costs max_retries x (timeout + retry_delay)
             raise
         except Exception as exc:  # noqa: BLE001
             last_error = exc

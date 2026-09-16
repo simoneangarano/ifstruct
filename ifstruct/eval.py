@@ -34,7 +34,7 @@ class EvalResult:
     require_wrapper_key: bool
 
 
-def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, sampling: dict[str, Any] | None = None, system_prompt: str | None = None, max_retries: int = 40) -> EvalResult:
+def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str, max_tokens: int, temperature: float, sampling: dict[str, Any] | None = None, system_prompt: str | None = None, max_retries: int = 40, request_timeout: float = 300.0) -> EvalResult:
     completion = chat_completion(
         base_url=base_url,
         api_key=api_key,
@@ -45,6 +45,7 @@ def run_one(example: IfStructExample, *, model: str, base_url: str, api_key: str
         temperature=temperature,
         sampling=sampling,
         max_retries=max_retries,
+        timeout=request_timeout,
     )
     validation = validate_response(
         response=completion.text,
@@ -260,6 +261,7 @@ def main() -> None:
         help="Optional system message prepended to every request. Needed by models that switch reasoning mode via a system-prompt marker (e.g. SmolLM3's /think).",
     )
     parser.add_argument("--max-retries", type=int, default=40, help="Max API retries per sample.")
+    parser.add_argument("--request-timeout", type=float, default=300.0, help="Per-request timeout (s). Timeouts are not retried.")
     parser.add_argument("--seed", type=int, nargs="+", default=None, help="Run only these seed(s).")
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--log-failures", default=None, help="Optional JSONL path for failed examples.")
@@ -304,6 +306,7 @@ def main() -> None:
                 sampling=sampling,
                 system_prompt=args.system_prompt,
                 max_retries=args.max_retries,
+                request_timeout=args.request_timeout,
             ): example
             for example in examples
         }
