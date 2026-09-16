@@ -34,6 +34,21 @@ def _chat_completions_url(base_url: str) -> str:
     return normalized + "/chat/completions"
 
 
+def _thinking_prefix(message: dict[str, Any]) -> str:
+    """Re-attach a reasoning trace the server split out of ``content``.
+
+    A server started with a reasoning parser (e.g. vLLM ``--reasoning-parser
+    qwen3``) strips ``<think>...</think>`` from ``content`` and returns it as
+    ``reasoning_content``, so a saved response looks like the model never
+    reasoned. ``remove_thinking_tags`` runs before validation, so putting the
+    trace back costs nothing at scoring time and keeps it in the artifacts.
+    """
+    reasoning = message.get("reasoning_content") or message.get("reasoning")
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return ""
+    return f"<think>{reasoning}</think>"
+
+
 def _extract_message_text(data: dict[str, Any]) -> str:
     choices = data.get("choices")
     if not isinstance(choices, list) or not choices:
@@ -43,9 +58,10 @@ def _extract_message_text(data: dict[str, Any]) -> str:
     if not isinstance(message, dict):
         raise TypeError("API response missing message")
 
+    prefix = _thinking_prefix(message)
     content = message.get("content")
     if isinstance(content, str):
-        return content
+        return prefix + content
 
     if isinstance(content, list):
         text_parts: list[str] = []
@@ -55,7 +71,7 @@ def _extract_message_text(data: dict[str, Any]) -> str:
             if item.get("type") == "text" and isinstance(item.get("text"), str):
                 text_parts.append(item["text"])
         if text_parts:
-            return "".join(text_parts)
+            return prefix + "".join(text_parts)
 
     finish = (
         choices[0].get("finish_reason") or choices[0].get("native_finish_reason") or ""
