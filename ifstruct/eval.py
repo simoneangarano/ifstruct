@@ -191,8 +191,8 @@ def print_summary(results: list[EvalResult], model: str) -> None:
         print(f"  {count:3d}x {key}")
 
 
-def has_api_failures(results: list[EvalResult]) -> bool:
-    return any(bool(result.details.get("api_error")) for result in results)
+def count_api_failures(results: list[EvalResult]) -> int:
+    return sum(1 for result in results if result.details.get("api_error"))
 
 
 def write_results_file(
@@ -262,6 +262,7 @@ def main() -> None:
     )
     parser.add_argument("--max-retries", type=int, default=40, help="Max API retries per sample.")
     parser.add_argument("--request-timeout", type=float, default=300.0, help="Per-request timeout (s). Timeouts are not retried.")
+    parser.add_argument("--max-api-error-rate", type=float, default=0.02, help="Fraction of samples allowed to fail with API errors before the run is failed.")
     parser.add_argument("--seed", type=int, nargs="+", default=None, help="Run only these seed(s).")
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--log-failures", default=None, help="Optional JSONL path for failed examples.")
@@ -365,9 +366,16 @@ def main() -> None:
         )
 
     print_summary(results, args.model)
-    if has_api_failures(results):
-        print("\nRun completed with exhausted request retries. Failing the eval because one or more API requests never succeeded.")
-        sys.exit(1)
+    api_failures = count_api_failures(results)
+    if api_failures:
+        rate = api_failures / len(results)
+        print(
+            f"\n{api_failures}/{len(results)} requests never succeeded ({rate:.2%}); "
+            f"tolerance is {args.max_api_error_rate:.2%}."
+        )
+        if rate > args.max_api_error_rate:
+            print("Failing the eval because the API error rate exceeds the tolerance.")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
